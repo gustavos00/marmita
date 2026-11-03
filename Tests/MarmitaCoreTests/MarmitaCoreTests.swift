@@ -128,6 +128,43 @@ import Testing
         #expect(preferences.layouts[0].zones[0].rect == UnitRect(x: 0.5, y: 0, width: 0.5, height: 1))
     }
 
+    @Test func reorderingFollowsListDragConvention() {
+        var preferences = Preferences.defaults
+        let names = preferences.layouts.map(\.name)
+
+        preferences.reorderLayouts(fromOffsets: [0], toOffset: 3)
+
+        #expect(preferences.layouts.map(\.name) == [names[1], names[2], names[0]] + names[3...])
+
+        preferences.reorderLayouts(fromOffsets: [2], toOffset: 0)
+
+        #expect(preferences.layouts.map(\.name) == names)
+    }
+
+    @Test func shiftingStopsAtTheEnds() {
+        var preferences = Preferences.defaults
+        let names = preferences.layouts.map(\.name)
+        let first = preferences.layouts[0].id
+
+        preferences.shiftLayout(id: first, by: -1)
+
+        #expect(preferences.layouts.map(\.name) == names)
+
+        preferences.shiftLayout(id: first, by: 1)
+
+        #expect(preferences.layouts.map(\.name) == [names[1], names[0]] + names[2...])
+    }
+
+    @Test func removingAZoneKeepsTheOthers() {
+        var layout = LayoutPreset.grid2x2.makeLayout()
+        let removed = layout.zones[1].id
+
+        layout.removeZone(id: removed)
+
+        #expect(layout.zones.count == 3)
+        #expect(!layout.zones.contains { $0.id == removed })
+    }
+
     @Test func makeClampedKeepsRectInside() {
         let rect = UnitRect(x: 0.9, y: -0.2, width: 0.5, height: 0.3).makeClamped()
 

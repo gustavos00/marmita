@@ -53,6 +53,10 @@ public struct ZoneLayout: Codable, Hashable, Identifiable, Sendable {
         self.zones = zones
     }
 
+    public mutating func removeZone(id: UUID) {
+        zones.removeAll { $0.id == id }
+    }
+
     /// Zones in reading order (top to bottom, then left to right). Zone numbers,
     /// the ⌃⌥1…9 shortcuts and next/previous all follow this order.
     public var orderedZones: [Zone] {

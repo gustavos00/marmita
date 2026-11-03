@@ -55,6 +55,9 @@ struct LayoutEditorView: View {
                     }
                     .tag(layout.id)
                 }
+                .onMove { source, destination in
+                    state.preferences.reorderLayouts(fromOffsets: source, toOffset: destination)
+                }
             }
             .navigationSplitViewColumnWidth(min: 190, ideal: 220)
             .safeAreaInset(edge: .bottom) {
@@ -119,6 +122,22 @@ struct LayoutEditorView: View {
             .help("Apagar layout")
 
             Spacer()
+
+            Button {
+                shiftSelectedLayout(by: -1)
+            } label: {
+                Image(systemName: "chevron.up")
+            }
+            .disabled(selectedLayoutID == nil || selectedLayoutID == state.preferences.layouts.first?.id)
+            .help("Subir layout")
+
+            Button {
+                shiftSelectedLayout(by: 1)
+            } label: {
+                Image(systemName: "chevron.down")
+            }
+            .disabled(selectedLayoutID == nil || selectedLayoutID == state.preferences.layouts.last?.id)
+            .help("Descer layout")
         }
         .buttonStyle(.borderless)
         .padding(8)
@@ -152,6 +171,12 @@ struct LayoutEditorView: View {
         let zones = layout.zones.map { Zone(rect: $0.rect) }
 
         addLayout(ZoneLayout(name: "\(layout.name) (cópia)", zones: zones))
+    }
+
+    private func shiftSelectedLayout(by step: Int) {
+        if let id = selectedLayoutID {
+            state.preferences.shiftLayout(id: id, by: step)
+        }
     }
 
     private func deleteSelectedLayout() {
@@ -195,11 +220,6 @@ private struct LayoutDetailView: View {
             screenAssignments
 
             ZoneCanvas(layout: $layout, selectedZoneID: $selectedZoneID, aspectRatio: aspectRatio)
-                // A drag on the canvas never takes focus, so working with the
-                // zones hands it back from the name field and ⌘⌫ works again.
-                .onChange(of: selectedZoneID) {
-                    isNameFocused = false
-                }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             HStack(spacing: 10) {
@@ -214,7 +234,10 @@ private struct LayoutDetailView: View {
                 .fixedSize()
 
                 Button("Apagar zona") {
-                    layout.zones.removeAll { $0.id == selectedZoneID }
+                    if let id = selectedZoneID {
+                        layout.removeZone(id: id)
+                    }
+
                     selectedZoneID = nil
                 }
                 .keyboardShortcut(.delete, modifiers: .command)
@@ -230,7 +253,7 @@ private struct LayoutDetailView: View {
                 Spacer()
             }
 
-            Text("Arrasta numa área livre para desenhar uma zona. Arrasta uma zona para a mover e o canto inferior direito para a redimensionar. ⌘⌫ apaga a zona selecionada.")
+            Text("Arrasta numa área livre para desenhar uma zona. Arrasta uma zona para a mover e o canto inferior direito para a redimensionar. ⌫ apaga a zona selecionada.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
@@ -265,6 +288,7 @@ private struct ZoneCanvas: View {
     @State private var gesture: CanvasGesture?
     @State private var gestureStart: CGPoint?
     @State private var draft: UnitRect?
+    @FocusState private var isFocused: Bool
 
     private let cells = 24.0
     private let handleSize: CGFloat = 16
@@ -316,6 +340,19 @@ private struct ZoneCanvas: View {
             )
         }
         .aspectRatio(aspectRatio, contentMode: .fit)
+        .focusable()
+        .focusEffectDisabled()
+        .focused($isFocused)
+        .onKeyPress(keys: [.delete, .deleteForward]) { _ in
+            guard let id = selectedZoneID else {
+                return .ignored
+            }
+
+            layout.removeZone(id: id)
+            selectedZoneID = nil
+
+            return .handled
+        }
     }
 
     private func makeGridLines(size: CGSize) -> some View {
@@ -347,6 +384,9 @@ private struct ZoneCanvas: View {
         if gesture == nil || gestureStart != value.startLocation {
             gestureStart = value.startLocation
             draft = nil
+            // Taking focus from the name field is what lets ⌫ and the
+            // "Apagar zona" button act on the zones.
+            isFocused = true
             gesture = beginGesture(at: value.startLocation, size: size)
         }
 

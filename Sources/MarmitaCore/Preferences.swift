@@ -62,6 +62,32 @@ public struct Preferences: Codable, Equatable, Sendable {
         return layouts.first
     }
 
+    /// Moves the layouts at `source` so they land before the layout that was
+    /// at `destination`, the convention of a list's drag to reorder.
+    public mutating func reorderLayouts(fromOffsets source: IndexSet, toOffset destination: Int) {
+        let moving = source.sorted().compactMap { layouts.indices.contains($0) ? layouts[$0] : nil }
+        var remaining = layouts.enumerated().filter { !source.contains($0.offset) }.map(\.element)
+        let insertion = destination - source.filter { $0 < destination }.count
+
+        remaining.insert(contentsOf: moving, at: min(max(insertion, 0), remaining.count))
+        layouts = remaining
+    }
+
+    /// Moves one layout up (negative `step`) or down the list, stopping at the ends.
+    public mutating func shiftLayout(id: UUID, by step: Int) {
+        guard let index = layouts.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        let target = min(max(index + step, 0), layouts.count - 1)
+
+        guard target != index else {
+            return
+        }
+
+        layouts.swapAt(index, target)
+    }
+
     public mutating func removeLayout(id: UUID) {
         layouts.removeAll { $0.id == id }
         screenLayouts = screenLayouts.filter { $0.value != id }
